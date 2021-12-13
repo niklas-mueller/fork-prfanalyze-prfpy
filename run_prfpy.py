@@ -305,8 +305,8 @@ im = nib.Nifti1Image(np.reshape(res['pred'], bold_im.shape), bold_im.affine)
 im.to_filename(os.path.join(outdir, 'modelpred.nii.gz'))
 
 # Store R2
-im = nib.Nifti1Image(r2s, bold_im.affine)
-im.to_filename(os.path.join(outdir, 'r2.nii.gz'))
+# im = nib.Nifti1Image(r2s, bold_im.affine)
+# im.to_filename(os.path.join(outdir, 'r2.nii.gz'))
 
 
 # That's it!
