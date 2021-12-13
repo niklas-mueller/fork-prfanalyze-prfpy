@@ -1,0 +1,8 @@
+{
+    "detrend": 1,
+    "grid": false,
+    "keepAllPoints": false,
+    "model": "one gaussian",
+    "numberStimulusGridPoints": 50,
+    "wsearch": "coarse to fine"
+}

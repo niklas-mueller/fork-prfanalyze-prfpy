@@ -1,0 +1,13 @@
+{
+    "subjectName": "001",
+    "sessionName": "20200320",
+    "solver":      "vista",
+    "options": {
+        "model":    "one gaussian",
+        "grid":     false,
+        "wsearch":  "coarse to fine",
+        "detrend":  1,
+        "keepAllPoints": false,
+        "numberStimulusGridPoints": 50
+    }
+}
