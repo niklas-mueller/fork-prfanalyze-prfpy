@@ -20,17 +20,18 @@ from scipy.stats.stats import pearsonr
 
 # Load and open files
 opts_file = "/tank/mueller/projects/prfanalyze-prfpy/default_config.json"
-bold_file = "/tank/mueller/projects/simulated_5_voxels/BIDS/sub-001/ses-20200320/func/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.nii.gz"
-stim_file = "/tank/mueller/projects/simulated_5_voxels/BIDS/stimuli/sub-001_ses-20200320_task-prf_apertures.nii.gz"
-stimjs_file = "/tank/mueller/projects/simulated_5_voxels/BIDS/derivatives/prfsynth/sub-001/ses-20200320/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.json"
-outdir = "/tank/mueller/projects/simulated_5_voxels/BIDS/derivatives/prfanalyze-prfpy/sub-001/ses-20200320/"
+bold_file = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/sub-001/ses-20200320/func/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.nii.gz"
+stim_file = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/stimuli/sub-001_ses-20200320_task-prf_apertures.nii.gz"
+stimjs_file = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/derivatives/prfsynth/sub-001/ses-20200320/sub-001_ses-20200320_task-prf_acq-normal_run-01_bold.json"
+outdir = "/tank/mueller/projects/data/simulated/prfsynth_20_voxels/BIDS/derivatives/prfanalyze-prfpy/sub-001/ses-20200320/"
 # (opts_file, bold_file, stim_file, stimjs_file, outdir) = sys.argv[1:]
 
 with open(opts_file, 'r') as fl:
     opts = json.load(fl)
     opts = opts.get('options')
     if opts is None:
-        raise ValueError('Please make sure the config json has the correct structure and contains an "options" section!')
+        raise ValueError(
+            'Please make sure the config json has the correct structure and contains an "options" section!')
 bold_im = nib.load(bold_file)
 stim_im = nib.load(stim_file)
 with open(stimjs_file, 'r') as fl:
@@ -38,18 +39,21 @@ with open(stimjs_file, 'r') as fl:
 
 
 # seed random number generator so we get the same answers ...
+# TODO how much randomness is used in PRFPY?
 np.random.seed(opts.get('seed', 2764932))
 
 # if there is an HRF search or not...
 fixed_hrf = opts.get('fixed_hrf', False)
 
 
-# Walk through each voxel/stim description
+# Put data into correct shape
 bold = np.reshape(np.asarray(bold_im.dataobj), (-1, bold_im.shape[-1]))
 stim = np.squeeze(np.asarray(stim_im.dataobj))
 if len(stim_json) != bold.shape[0]:
     raise ValueError(
         'BOLD Image and Stimulus JSON do not have the same number of data points')
+
+
 if fixed_hrf:
     # fields = ('theta', 'rho', 'sigma', 'beta', 'baseline')
     fields = ('mu_x', 'mu_y', 'sigma', 'beta', 'baseline')
@@ -58,23 +62,22 @@ else:
     fields = ('mu_x', 'mu_y', 'sigma', 'beta', 'baseline', 'hrf_1', 'hrf_2')
 
 
-
 class FittingConfig:
     """
     FittingConfig
 
     Class to configure everything needed to create the model and run the fitting
     """
-    
-    def __init__(self, opts, fixed_hrf, stim):
+
+    def __init__(self, opts: dict, fixed_hrf: bool, stim):
         # MULTIPROCESSING
         opt_multiprocessing = opts.get('multiprocess', False)
         if opt_multiprocessing == 'auto' or opt_multiprocessing:
-            self.number_cores = multiprocessing.cpu_count()
+            self.number_jobs = multiprocessing.cpu_count()
         elif type(opt_multiprocessing) is int and opt_multiprocessing > 1:
-            self.number_cores = opt_multiprocessing
+            self.number_jobs = opt_multiprocessing
         else:
-            self.number_cores = 1  
+            self.number_jobs = 1
 
         # STIMULUS
         self.dist = opts.get('screen_distance', 100)
@@ -119,7 +122,7 @@ class FittingConfig:
         #     # (eps, 3*ss),                             # hrf_2
         # ]
 
-    def init_stimulus_params(self, info):
+    def init_stimulus_params(self, info: dict):
         self.stdat = info['Stimulus']
         if pimms.is_list(self.stdat):
             self.stdat = self.stdat[0]
@@ -173,27 +176,28 @@ class FittingConfig:
         else:  # (self.model_type == "Iso2DGaussian")
             self.gg = Iso2DGaussianModel(stimulus=self.stimulus)
 
-    def get_fitter(self, data):
+    def get_fitter(self, data: np.ndarray):
         if (self.model_type == "CFGaussian"):
             # TODO implement CFGaussian
-            self.gf = CFFitter()
+            self.gf = CFFitter(data=data, model=self.gg,
+                               fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         elif (self.model_type == "CSS_Iso2DGaussian"):
             # TODO implement CSS_Iso2DGaussian
             self.gf = CSS_Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf)
+                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         elif (self.model_type == "DoG_Iso2DGaussian"):
             # TODO implement DoG_Iso2DGaussian
             self.gf = DoG_Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf)
+                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
         elif (self.model_type == "Norm_Iso2DGaussian"):
             # TODO implement Norm_Iso2DGaussian
             self.gf = Norm_Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf)
+                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
 
         else:  # (self.model_type == "Iso2DGaussian")
             self.gf = Iso2DGaussianFitter(
-                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=1)
-
+                data=data, model=self.gg, fit_hrf=self.fit_hrf, n_jobs=self.number_jobs)
+                
         return self.gf
 
 
@@ -220,9 +224,14 @@ def fit_voxel(x, info, config):
         (config.eps, 1.5 * config.stim_width),
         (0, 1000),                                 # beta
         (0, 1000),                                 # baseline
-        # (0, 1000),                               # hrf_1
-        # (eps, 3*ss),                             # hrf_2
     ]
+
+    if config.fit_hrf:
+        gauss_bounds.append((
+            (0, 1000),                               # hrf_1
+            # hrf_2
+            (config.eps, 3*config.stimulus.screen_size_degrees),
+        ))
 
     # FIT
     gf.grid_fit(ecc_grid=eccs,
@@ -239,7 +248,8 @@ def fit_voxel(x, info, config):
 
     # Get RESULTS
     # params = gf.gridsearch_params[index, :]
-    params = gf.gridsearch_params
+    params = gf.iterative_search_params
+    
     # print(f"Fit for vox {index} = {params[-1]}")
     pred = [config.gg.return_prediction(
         *params[i, :-1])[0] for i in range(len(params))]
@@ -254,18 +264,14 @@ fitting_config = FittingConfig(opts=opts, stim=stim, fixed_hrf=fixed_hrf)
 
 voxs = fit_voxel(x=bold, info=stim_json[0], config=fitting_config)
 
-# Crossvalidate fit
-# fitting_config.gf.crossvalidate_fit(bold)
-
-
 # data_bundle = zip(range(len(bold)), bold, stim_json)
-# if number_cores == 1:
+# if number_jobs == 1:
 #     voxs = [fit_voxel((index, x, stim_json), fitting_config)
 #             for (index, x, stim_json) in data_bundle]
 # else:
-#     print(f"Using {number_cores} threads for parallel computing.")
+#     print(f"Using {number_jobs} threads for parallel computing.")
 #     tups = list(data_bundle)
-#     with sharedmem.Pool(np=number_cores) as pool:
+#     with sharedmem.Pool(np=number_jobs) as pool:
 #         voxs = pool.map(fit_voxel, [tups, fitting_config])
 #     voxs = list(sorted(voxs, key=lambda tup: tup[0]))
 
@@ -282,7 +288,8 @@ for i in range(len(bold)):
     r2s.append(r2)
 
 final_res = {}
-final_res['centerx0'] = res['mu_x'] # TODO since this is in degrees of visual angle, does it have to be converted back? If yes, to what?
+# TODO since this is in degrees of visual angle, does it have to be converted back? If yes, to what?
+final_res['centerx0'] = res['mu_x']
 final_res['centery0'] = res['mu_y']
 # final_res['centerx0'] = np.cos(res['theta']) * res['rho']
 # final_res['centery0'] = -np.sin(res['theta']) * res['rho']
@@ -290,7 +297,6 @@ final_res['sigmamajor'] = res['sigma']
 final_res['sigmaminor'] = res['sigma']
 final_res['beta'] = res['beta']
 final_res['baseline'] = res['baseline']
-
 
 
 # Save results to files

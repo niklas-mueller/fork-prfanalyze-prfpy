@@ -27,17 +27,17 @@ docker run --rm -it \
 docker run --rm -it \
       -v $basedir/empty:/flywheel/v0/input:ro  \
       -v $basedir:/flywheel/v0/output \
-        garikoitz/prfanalyze-popeye:latest
+        garikoitz/prfanalyze-prfpy:latest
 
 
-mv $basedir/prfanalyze-popeye-default-config.json $basedir/prfanalyze-popeye-config_sub-001_sess-20200320.json
+mv $basedir/prfanalyze-prfpy-default-config.json $basedir/prfanalyze-prfpy-config_sub-001_sess-20200320.json
 
 
 docker run --rm -it \
       -v $basedir:/flywheel/v0/input \
       -v $basedir:/flywheel/v0/output \
-      -v $basedir/prfanalyze-popeye-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json:ro  \
-         garikoitz/prfanalyze-popeye:latest
+      -v $basedir/prfanalyze-prfpy-config_sub-001_sess-20200320.json:/flywheel/v0/input/config.json:ro  \
+         garikoitz/prfanalyze-prfpy:latest
 
 
 
